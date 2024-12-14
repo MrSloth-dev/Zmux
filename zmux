@@ -21,7 +21,7 @@ list_sessions() {
         if ! session_exists "$session"; then
             create_session "$session"
         fi
-        if [[ -z "$TMUX" ]]; then
+        if [[ -z "${TMUX:-}" ]]; then
             tmux attach-session -t "$session"
         else
             tmux switch-client -t "$session"
@@ -29,6 +29,7 @@ list_sessions() {
     fi
 }
 
+## This is for fallback
 # list_sessions() {
 #     # echo "Available Sessions:"
 #     echo "Configured Sessions:"
@@ -75,7 +76,7 @@ if [[ $# -eq 0 ]]; then
     exit 0
 fi
 
-local session_name="$1"
+session_name="$1"
 if ! yq ".sessions.${session_name}" "$CONFIG_FILE" > /dev/null 2>&1; then
     echo "Error: Session '${session_name}' not found in configuration."
     exit 1
@@ -85,8 +86,9 @@ if ! session_exists "$session_name"; then
     create_session "$session_name"
 fi
 
-if [[ -z "$TMUX" ]]; then
+if [[ -z "${TMUX:-}" ]]; then
     tmux attach-session -t "$session_name"
 else
     tmux switch-client -t "$session_name"
+fi
 fi

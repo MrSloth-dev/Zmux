@@ -10,6 +10,10 @@ Right now you can copy the script and add to PATH. (`~/.local/bin/` for example)
 
 This script needs `yq`, `tmux`(doh) and `fzf` to run. Although I'm working on making a fallback for fzf.
 
+# Usage
+
+As simple as a person wants. Just type `zmux` (after correct install) and it pop ups a `fzf` window and then select the pretended session.
+
 # Configuration
 
 Create a file in `~/.config/zmux/config.yaml`. This is where the script will fectch the pre-configured sessions.
