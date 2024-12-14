@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+
+set -eu
+CONFIG_FILE="${HOME}/.config/zmux/config.yaml"
+
+#Check requirements
+command -v yq >/dev/null 2>&1 || { echo "Error: yq is required but not installed."; exit 1; }
+command -v tmux >/dev/null 2>&1 || { echo "Error: tmux is required but not installed."; exit 1; }
+command -v fzf >/dev/null 2>&1 || { echo "Error: fzf is required but not installed."; exit 1; }
+
+list_sessions() {
+    if [[ -f "$CONFIG_FILE" ]]; then
+        configured=$(yq '.sessions | keys' "$CONFIG_FILE" 2>/dev/null  | grep -v '\[\|\]' | sed 's/,//' | sed 's/^  //' | sed 's/"//g')
+    else
+        echo "  Config file not found at $CONFIG_FILE"
+    fi
+    active=$(tmux ls -F "#S" 2>/dev/null)
+    combined=$(printf "%s\n%s" "$configured" "$active" | sort -u)
+    local session=$(echo "$combined" | fzf --tmux 70%)
+    if [[ -n "$session" ]]; then
+        if ! session_exists "$session"; then
+            create_session "$session"
+        fi
+        if [[ -z "$TMUX" ]]; then
+            tmux attach-session -t "$session"
+        else
+            tmux switch-client -t "$session"
+        fi
+    fi
+}
+
+# list_sessions() {
+#     # echo "Available Sessions:"
+#     echo "Configured Sessions:"
+#
+#     # Safely list configured sessions
+#     if [ -f "$CONFIG_FILE" ]; then
+#         yq '.sessions | keys' "$CONFIG_FILE" 2>/dev/null  | grep -v '\[\|\]' | sed 's/,//' | sed 's/^  //' | sed 's/"//g' || echo "  No configured sessions found"
+#     else
+#         echo "  Config file not found at $CONFIG_FILE"
+#     fi
+#
+#     echo -e "Active Tmux Sessions:"
+#     tmux list-sessions 2>/dev/null | sed 's/^  //' | cut -f 1 -d ':' || echo "  No active sessions"
+# }
+
+session_exists() {
+    tmux has-session -t "$1" 2>/dev/null
+}
+
+create_session() {
+    local session_name="$1"
+    local root_dir=$(yq ".sessions.${session_name}.root" "$CONFIG_FILE")
+    local start_index=$(yq ".sessions.${session_name}.start_index // 1" "$CONFIG_FILE")
+
+    tmux new-session -d -s $session_name -c $root_dir
+
+    local window_count=$(yq ".sessions.${session_name}.windows | length" "$CONFIG_FILE")
+    for ((i=0; i<window_count; i++)); do
+        local window_name=$(yq ".sessions.${session_name}.windows[${i}].name" "$CONFIG_FILE" | sed 's/"//g')
+        local window_command=$(yq ".sessions.${session_name}.windows[${i}].command" "$CONFIG_FILE"| sed 's/"//g')
+        if ((i == 0)); then
+            tmux rename-window -t ${session_name}:${start_index} $window_name
+        else
+            tmux new-window -t ${session_name} -n $window_name -c $root_dir
+        fi
+        if [[ -n "$window_command" ]]; then
+            tmux send-keys -t ${session_name}:${window_name} "$window_command" C-m
+        fi
+    done
+}
+## Main Program
+if [[ $# -eq 0 ]]; then
+    list_sessions
+    exit 0
+fi
+
+local session_name="$1"
+if ! yq ".sessions.${session_name}" "$CONFIG_FILE" > /dev/null 2>&1; then
+    echo "Error: Session '${session_name}' not found in configuration."
+    exit 1
+fi
+
+if ! session_exists "$session_name"; then
+    create_session "$session_name"
+fi
+
+if [[ -z "$TMUX" ]]; then
+    tmux attach-session -t "$session_name"
+else
+    tmux switch-client -t "$session_name"
+fi
