@@ -4,11 +4,20 @@ You can check [here](https://github.com/MrSloth-dev/.dotfiles/blob/main/scripts/
 
 # Instalation
 
-Right now you can copy the script and add to PATH. (`~/.local/bin/` for example) simple as that
+```
+mkdir -p ~/.local/bin/
+wget https://raw.githubusercontent.com/MrSloth-dev/eZmux/refs/heads/main/zmux -O ~/.local/bin/zmux
+chmod u+x ~/.local/bin/zmux
+# Add to .bashrc or .zshrc or add /.local/bin to $PATH
+echo 'alias zmux="~/.local/bin/zmux"' >> ~/.zshrc
+source ~/.zshrc
+```
 
 ## Dependencies
 
-This script needs `yq`, `tmux`(doh) and `fzf` to run. Although I'm working on making a fallback for fzf.
+- `yq` version greater or equal to `v4.44.6` This tool allows the configuration parsing.
+- `tmux` (doh).
+- `fzf` This tool allows quick and interactive listing of all pre-configured and opened sessions.
 
 # Usage
 
@@ -16,9 +25,9 @@ As simple as a person wants. Just type `zmux` (after correct install) and it pop
 
 # Configuration
 
-Create a file in `~/.config/zmux/config.yaml`. This is where the script will fectch the pre-configured sessions.
+Create a file in `~/.config/ezmux/config.yaml`. This is where the script will fectch the pre-configured sessions.
 
-For a basic session
+For a basic session:
 ```
 sessions:
   project_a:
@@ -38,6 +47,7 @@ sessions:
       - name: README.md
         command: nvim README.md
 ```
+
 For now there is not layout but will be implemented.
 
 # Roadmap | TODO
@@ -54,6 +64,14 @@ For now there is not layout but will be implemented.
 - [ ] Save the current session into a YAML file for future usage.
 - [ ] Command to create a new configuration file with a template.
 - [ ] Sugestions are welcome!
+
+### [0.1.1] - 2024-12-22
+
+### Bugfix
+
+- Fixed yq parse because I was using an older version. Now it requires v4.44.6.
+- Fixed error when user inserted an non existent and not configured session name.
+- Root folder wasn't being set correctly.
 
 ### [0.1] - 2024-12-14
  
