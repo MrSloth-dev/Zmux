@@ -52,15 +52,19 @@ check_config() {
         esac;
         exit 2;
     fi
-
 }
+
+export FZF_DEFAULT_OPTS=" --tmux 70% \
+    --border-label='Available Sessions' \
+    --header-first \
+    --header='Please select a session'"
 
 # List when no args
 list_sessions() {
     check_config
     active=$(tmux ls -F "#S" 2>/dev/null || echo "")
     combined=$(printf "%s\n%s" "$configured" "$active" | sort -u)
-    local session=$(echo "$combined" | fzf --tmux 70% --border-label="Avaiable Sessions" --header-first --header="Please select a session")
+    local session=$(echo "$combined" | fzf )
     if [[ -n "$session" ]]; then
         if ! session_exists "$session"; then
             create_session "$session"
