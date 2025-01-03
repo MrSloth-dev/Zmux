@@ -18,7 +18,7 @@ source ~/.zshrc
 
 ## Dependencies
 
-- `tmux` (doh).
+- `tmux` version greater or equal to `v3.3`.
 - `yq` version greater or equal to `v4.44.6`. This tool allows the configuration parsing.
 - `fzf` This tool allows quick and interactive listing of all pre-configured and opened sessions.
 
