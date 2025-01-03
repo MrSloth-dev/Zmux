@@ -4,12 +4,6 @@
 set -euo pipefail
 export CONFIG_DIR="${HOME}/.config/zmux"
 export CONFIG_FILE="${HOME}/.config/zmux/config.yaml"
-export FZF_DEFAULT_OPTS=" --tmux 70% \
-    --border-label='Available Sessions' \
-    --header-first \
-    --bind='ctrl-t:toggle-preview' \
-    --preview='bash -c \"preview {}\"'
-    --header='Please select a session'"
 
 #Requirements
 command -v tmux >/dev/null 2>&1 || { echo "zmux: Error: tmux is required but not installed." >&2; exit 1; }
@@ -96,7 +90,6 @@ preview() {
     fi
     for yaml_file in "${CONFIG_DIR}"/*.yaml; do
         if (yq ".sessions.${session_name}" "${yaml_file}" | grep -v null &>/dev/null); then
-            # echo -e "Configuration file: $(basename ${yaml_file})"
             if ! session_exists "${session_name}"; then
                 echo -e "\nConfigured Windows:"
                 yq ".sessions.${session_name}.windows[].name" "${yaml_file}" | sed 's/^/- /'
@@ -112,7 +105,7 @@ list_sessions() {
     check_config
     active=$(tmux ls -F "#S" 2>/dev/null || echo "")
     combined=$(printf "%s\n%s" "$configured" "$active" | sort -u)
-    local session=$(echo "$combined" | fzf )
+    local session=$(echo "$combined" | fzf --tmux 70% --border-label='Available Sessions' --header-first --bind='ctrl-t:toggle-preview' --preview="bash -c 'preview {}'" --header='Please select a session')
     if [[ -n "$session" ]]; then
         if ! session_exists "$session"; then
             create_session "$session"
