@@ -2,6 +2,8 @@
 Zmux is a shell script written in bash to create, manage and open session in `Tmux`.
 You can check [here](https://github.com/MrSloth-dev/.dotfiles/blob/main/scripts/zmux.sh) the shell script that was the origin of the idea for this plugin.
 
+![img](assets/preview.png)
+
 # Instalation
 
 ``` bash
@@ -16,17 +18,39 @@ source ~/.zshrc
 
 ## Dependencies
 
-- `yq` version greater or equal to `v4.44.6`. This tool allows the configuration parsing.
 - `tmux` (doh).
+- `yq` version greater or equal to `v4.44.6`. This tool allows the configuration parsing.
 - `fzf` This tool allows quick and interactive listing of all pre-configured and opened sessions.
 
 # Usage
 
-As simple as a person wants. Just type `zmux` (after correct install) and it pop ups a `fzf` window and then select the pretended session.
+The main goal of this script is to be simple, there are two ways of invoking the script:
+ - `zmux` will spawn a `fzf` window that list all active and pre-configured sessions.
+
+![img](assets/preview.png)
+
+ **Note**: Press Ctrl-t to toggle the `fzf` preview-window.
+
+ - `zmux <sesison-name>` will search if session is active or exist in configuration files. If not, it prompts the user to create a new session.
+
+ - `zmux -k` or `--kill` to kill the `tmux` server
+
+ - `zmux -e` or `--export` to export the current session into a `YAML` file
+
+ - `zmux -h` or `--help` to print the help message
 
 # Configuration
 
-Create a file in `~/.config/zmux/config.yaml`. This is where the script will fectch the pre-configured sessions.
+All configurations will be sourced in `YAML` format under `~/.config/zmux/` directory.
+
+You can have multiple sessions pre-configured in each file:
+```
+~/.config/zmux/
+  ├── work.yaml      # Work-related sessions
+  ├── personal.yaml  # Personal project sessions
+  ├── dev.yaml       # Development environment sessions
+  └── server.yaml    # Server management sessions
+```
 
 For a basic session:
 
@@ -50,7 +74,7 @@ sessions:
         command: nvim README.md
 ```
 
-For now there isn't layout and split panes but will be implemented.
+Note: For now, there isn't layout and split panes but will be implemented.
 
 # Roadmap | TODO
 - [x] Create Session with `zmux <session_name>`
@@ -58,14 +82,23 @@ For now there isn't layout and split panes but will be implemented.
   - [x] Create Normal Windows and rename them
   - [x] Create Windows with different Panes
   - [x] Send Commands to each pane
-- [ ] `zmux` without args list all available sessions opened and in the configuration file
+- [x] `zmux` without args list all available sessions opened and in the configuration file
   - [x] fzf
+- [x] Export the current session into a YAML file for future usage.
+- [x] Use multiple files instead of only `config.yaml`
+- [x] Preview windows in fzf list
 - [ ] Different layouts for splits
-- [x] Save the current session into a YAML file for future usage.
-- [ ] Interactive creation of a new Configuration
-- [ ] Preview windows in fzf list
-- [ ] Use multiple files instead of only `config.yaml`
 - [ ] Sugestions are welcome!
+
+# Changelog
+
+### [0.3] - 2025-1-3
+
+### Added
+
+- Added support for multiple configuration files, now you can do it like this:
+
+- Added window Preview when seeing in `fzf list` , can press `ctrl-t` to toggle preview-window.
 
 ### [0.2] - 2024-12-29
  
