@@ -92,12 +92,26 @@ Note: For now, there isn't layout and split panes but will be implemented.
 
 # Changelog
 
+### [0.3.1] - 2025-1-16
+
+### Added
+
+- Added preconfigured sessions check for duplicates. Now duplicates are forbidden.
+- `-v` flag for checking the version
+
+### Changed
+
+- Changed the way that export works, now creates (correctly) a .yaml file if there isn't one or appends if the user want to group configurations.
+
+### Bugfix
+
+- Sometimes the yaml generated text was badly formatted.
+
 ### [0.3] - 2025-1-3
 
 ### Added
 
 - Added support for multiple configuration files, now you can do it like this:
-
 - Added window Preview when seeing in `fzf list` , can press `ctrl-t` to toggle preview-window.
 
 ### [0.2] - 2024-12-29
