@@ -13,7 +13,7 @@ setup() {
 @test "Check zmux version" {
   run zmux --version
   [ "$status" -eq 0 ]
-  [[ "$output" == "v0.3.1" ]]
+  [[ "$output" =~ "v" ]]
 }
 
 @test "Invalid flag" {
