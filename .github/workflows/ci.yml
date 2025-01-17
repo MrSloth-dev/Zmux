@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Bats
+      run: |
+        git submodule update --init --recursive
+
+    - name: Install Dependencies
+      run: sudo apt-get install -y tmux fzf wget yamllint
+
+    - name: Install yq
+      run:  wget https://github.com/mikefarah/yq/releases/download/${VERSION}/${BINARY} -O /usr/bin/yq && chmod +x /usr/bin/yq
+
+    - name: Run Tests
+      run: test/bats/bin/bats test/tests_zmux.bats
+
+    - name: Cleanup Existing Tmux Sessions
+      run: tmux kill-server || true
