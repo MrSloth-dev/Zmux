@@ -2,7 +2,7 @@
 # A script to manage and create Tmux Sessions.
 
 set -euo pipefail
-VERSION="v0.3.1"
+VERSION="v0.3.2"
 export CONFIG_DIR="${HOME}/.config/zmux"
 export CONFIG_FILE="${HOME}/.config/zmux/config.yaml"
 
@@ -34,7 +34,7 @@ session_exists() {
 
 check_config() {
     if [[ ! -d "${CONFIG_DIR}" ]]; then
-        echo "zmux: Error: Config directory not foundat '${CONFIG_FILE}'" >&2
+        echo "zmux: Error: Config directory not found at '${CONFIG_FILE}'" >&2
         read -p "Want to create Config Directory?[Y/n] " yn
         case $yn in
             [Yy]* )
@@ -170,7 +170,7 @@ export_config() {
         exit
     fi
     echo "Avaiable config files:"
-    find ${CONFIG_DIR} -type f -name "*.yaml" -exec basename '{}' .yaml \;
+    find "${CONFIG_DIR}" \( -type f -o -type l \) -name "*.yaml" -exec basename '{}' .yaml \;
     read -p "Enter file (without path or extension) to export to: " config_name
     if [[ -z "${config_name}" ]]; then
         config_name="${session_name}.yaml"
@@ -205,8 +205,8 @@ export_config() {
     while IFS=' ' read -r index name path; do
         last_command=""
         yaml_content+="
-        - name: $name
-          command: \"$last_command\""
+      - name: $name
+        command: \"$last_command\""
     done <<< "$windows"
     echo -e "${yaml_content}" >> $export_file;
     if [[ ! -f "${export_file}" ]]; then
@@ -225,6 +225,7 @@ help() {
         echo "-h, --help         Print this help message";
         echo "-k, --kill         Kill Tmux server";
         echo "-e, --export       Export current session into a YAML file";
+        echo "-c, --check        Check your configuration files with yamllint(required)";
         echo "-v, --version      Display version information and exit";
 }
 
@@ -249,6 +250,10 @@ main() {
         exit 0
     elif [[ $1 == "--kill" || $1 == "-k" ]]; then
         tmux kill-server;
+    elif [[ $1 == "--check" || $1 == "-c" ]]; then
+        command -v yamllint >/dev/null 2>&1 || { echo "zmux: Error: yamllint is required but not installed." >&2; exit 1; }
+        check_config
+        yamllint --no-warnings "${CONFIG_DIR}"
     elif [[ $1 == "--export" || $1 == "-e" ]]; then
         if is_tmux_open; then
             echo "zmux: Error: Must be on Tmux" >&2; exit 3;

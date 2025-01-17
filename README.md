@@ -21,6 +21,7 @@ source ~/.zshrc
 - `tmux` version greater or equal to `v3.3`.
 - `yq` version greater or equal to `v4.44.6`. This tool allows the configuration parsing.
 - `fzf` This tool allows quick and interactive listing of all pre-configured and opened sessions.
+- `yamllint` This tool check if configuration files are well formatted.
 
 # Usage
 
@@ -37,7 +38,11 @@ The main goal of this script is to be simple, there are two ways of invoking the
 
  - `zmux -e` or `--export` to export the current session into a `YAML` file
 
+ - `zmux -c` or `--check` to the `YAML` configuration file and ouputs if found any errors.
+
  - `zmux -h` or `--help` to print the help message
+
+ - `zmux -v` or `--version` to print the version
 
 # Configuration
 
@@ -84,13 +89,28 @@ Note: For now, there isn't layout and split panes but will be implemented.
   - [x] Send Commands to each pane
 - [x] `zmux` without args list all available sessions opened and in the configuration file
   - [x] fzf
-- [x] Export the current session into a YAML file for future usage.
+- [x] Export the current session into a YAML file for future usage
 - [x] Use multiple files instead of only `config.yaml`
+- [x] Configuration Checker
 - [x] Preview windows in fzf list
-- [ ] Different layouts for splits
+- [ ] Splits
+  - [ ] Different Layouts
+- [ ] CI and testing to make sure it doesn't break anything
 - [ ] Sugestions are welcome!
 
 # Changelog
+
+### [0.3.2] - 2025-1-17
+
+### Added
+
+- Now you can check your configuration files with `zmux --check` or `zmux -c`!
+- `-v` flag for checking the version
+- Testing with `bats` and CI.
+
+### Bugfix
+
+- Correct the file list when creating new file through export, now also follows symbolic links.
 
 ### [0.3.1] - 2025-1-16
 
