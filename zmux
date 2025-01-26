@@ -177,7 +177,7 @@ create_session() {
             for ((j = 0; j < pane_count; j++)); do
                 local pane_command=$(yq ".sessions.${session_name}.windows[${i}].panes[${j}].command" "$config_file")
                 if [[ -n "${pane_command}" ]]; then
-                    tmux send-keys -t "${session_name}:${window_name}.${j}" "$pane_command" C-m
+                    tmux send-keys -t "${session_name}:${window_name}.$((j + 1))" "$pane_command" C-m
                 fi
             done
         fi
