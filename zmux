@@ -53,15 +53,27 @@ check_config() {
         echo "zmux: Error: No yaml configuration found in '${CONFIG_DIR}'";
         exit 1;
     fi
-    configured=""
+
+    configured=()
+    duplicate_sessions=()
+
     for config_file in "${CONFIG_DIR}"/*.yaml; do
         if [[ -f "${config_file}" ]]; then
-            if [[ $(yq '.sessions' "${config_file}"  | grep -v null 2>/dev/null) ]]; then
-                file_sessions=$(yq '.sessions | keys' "${config_file}" | sed 's/- //')
-                configured+="${file_sessions}"$'\n'
-            fi
+                session_names=$(yq '.sessions | keys | .[]' "${config_file}")
+                while IFS= read -r session; do
+                    if [[ "${configured[*]}" =~ (^| )${session}($| ) ]]; then
+                        echo "${session}"
+                        duplicate_sessions+=("${session}")
+                    fi
+                configured+="${session}"$'\n'
+                done <<< "${session_names}"
         fi
     done
+    if [[ ${#duplicate_sessions[@]} -gt 0 ]]; then
+        dup=$(printf '%s ' "${duplicate_sessions[@]}")
+        echo -e "zmux: error: duplicate session(s) found '${dup}', exiting.." >&2;
+        exit 2
+    fi
 }
 
 preview() {
@@ -149,14 +161,25 @@ create_session() {
     local window_count=$(yq ".sessions.${session_name}.windows | length" "$config_file")
     for ((i = 0; i < window_count; i++)); do
         local window_name=$(yq ".sessions.${session_name}.windows[${i}].name" "$config_file")
+        local window_layout=$(yq ".sessions.${session_name}.windows[${i}].layout // \"tiled\"" "$config_file")
         local window_command=$(yq ".sessions.${session_name}.windows[${i}].command" "$config_file")
         if ((i == 0)); then
             tmux rename-window -t ${session_name}:${start_index} "${window_name}"
         else
             tmux new-window -t ${session_name} -n "${window_name}" -c "${root_dir}"
         fi
-        if [[ -n "$window_command" ]]; then
-            tmux send-keys -t "${session_name}":"$(printf '%q' ${window_name})" "$window_command" C-m
+        local pane_count=$(yq ".sessions.${session_name}.windows[${i}].panes | length // 0" "$config_file")
+        if [[ "${pane_count}" -gt 0 ]]; then
+            for ((j = 1; j < pane_count; j++)); do
+                tmux split-window -t "${session_name}:${window_name}"
+            done
+            tmux select-layout -t "${session_name}:${window_name}" "${window_layout}"
+            for ((j = 0; j < pane_count; j++)); do
+                local pane_command=$(yq ".sessions.${session_name}.windows[${i}].panes[${j}].command" "$config_file")
+                if [[ -n "${pane_command}" ]]; then
+                    tmux send-keys -t "${session_name}:${window_name}.${j}" "$pane_command" C-m
+                fi
+            done
         fi
     done
 }
