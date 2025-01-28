@@ -14,6 +14,7 @@ EXIT_DEPENDENCY_ERROR=1
 EXIT_CONFIG_ERROR=2
 EXIT_INVALID_SESSION_NAME=3
 EXIT_TMUX_NOT_RUNNING=4
+EXIT_IVALID_INPUT=5
 
 #Requirements
 command -v tmux >/dev/null 2>&1 || { echo -e "zmux: Error: tmux is required but not installed." >&2; exit "${EXIT_DEPENDENCY_ERROR}"; }
@@ -44,7 +45,7 @@ session_exists() {
 check_config() {
     if [[ ! -d "${CONFIG_DIR}" ]]; then
         echo -e "zmux: Error: Config directory not found at '${CONFIG_FILE}'" >&2
-        read -p "Want to create Config Directory?[Y/n] " yn
+        read -p "Want to create Config Directory? [Y/n] " yn
         case $yn in
             [Yy]* )
                 mkdir -p "${CONFIG_DIR}" && echo -e "Config directory created at '${CONFIG_DIR}'";
@@ -68,7 +69,11 @@ check_config() {
 
     for config_file in "${CONFIG_DIR}"/*.yaml; do
         if [[ -f "${config_file}" ]]; then
-            session_names=$(yq '.sessions | keys | .[]' "${config_file}")
+            if [[ ! $(yq '.sessions | keys | .[]' "${config_file}" 2>/dev/null) ]]; then
+                echo -e "zmux: Error: Bad format in '${config_file}'";
+                exit "${EXIT_CONFIG_ERROR}"
+            fi
+            session_names=$(yq '.sessions | keys | .[]' "${config_file}" 2>/dev/null)
             while IFS= read -r session; do
                 if [[ "${configured[*]}" =~ (^| )${session}($| ) ]]; then
                     echo -e "${session}"
@@ -80,7 +85,7 @@ check_config() {
     done
     if [[ ${#duplicate_sessions[@]} -gt 0 ]]; then
         dup=$(printf '%s ' "${duplicate_sessions[@]}")
-        echo -e "zmux: error: duplicate session(s) found '${dup}', exiting.." >&2;
+        echo -e "zmux: Error: duplicate session(s) found '${dup}', exiting.." >&2;
         exit "${EXIT_CONFIG_ERROR}"
     fi
 }
@@ -143,7 +148,7 @@ list_sessions() {
     check_config
     if [[ $(echo -e "${configured}" | uniq -d) ]]; then
         dup=$(echo -e "${configured}" | uniq -d | tr '\n' ' ')
-        echo -e "zmux: error: duplicate session(s) found '${dup}', exiting.." >&2;
+        echo -e "zmux: Error: duplicate session(s) found '${dup}', exiting.." >&2;
         exit "${EXIT_CONFIG_ERROR}"
     fi
     active=$(tmux ls -F "#S" 2>/dev/null || echo -e "")
@@ -295,6 +300,10 @@ grep_config() {
 }
 
 kill () {
+    if [[ $# -eq 0 ]]; then
+        echo -e "zmux: Error: Must specify session name or 'all' to kill server." >&2;
+        exit "${EXIT_IVALID_INPUT}";
+    fi
     if [[ $1 == all ]]; then
         tmux kill-server
         exit "${EXIT_SUCCESS}";
@@ -333,7 +342,7 @@ main() {
         if is_tmux_open; then
             echo -e "zmux: Error: Must be on Tmux" >&2; exit "${INVALID_SESSION_NAME}";
         fi;
-        read -p "Want Export Current Session Configuration?[Y/n] " yn
+        read -p "Want Export Current Session Configuration? [Y/n] " yn
         case $yn in
             [Yy]* ) export_config $@; exit "${EXIT_SUCCESS}";;
             [Nn]* ) exit "${EXIT_SUCCESS}" ;;
@@ -358,7 +367,7 @@ main() {
             exit "${EXIT_INVALID_SESSION_NAME}";
         elif grep_config $@ && ! session_exists "${session_name}"; then
             echo -e "zmux: Error: Session '${session_name}' not found." >&2
-            read -p "Want to create a new session named '${session_name}'?[Y/n] " answer
+            read -p "Want to create a new session named '${session_name}'? [Y/n] " answer
             case $answer in
                 [Yy]* )
                     echo -e "Session will be created. Continuing.."
