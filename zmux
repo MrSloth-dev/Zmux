@@ -2,22 +2,33 @@
 # A script to manage and create Tmux Sessions.
 
 set -euo pipefail
-VERSION="v0.3.2"
+VERSION="v0.4.0"
 export CONFIG_DIR="${HOME}/.config/zmux"
 export CONFIG_FILE="${HOME}/.config/zmux/config.yaml"
 
+##ERROR CODES
+
+
+EXIT_SUCCESS=0
+EXIT_DEPENDENCY_ERROR=1
+EXIT_CONFIG_ERROR=2
+EXIT_INVALID_SESSION_NAME=3
+EXIT_TMUX_NOT_RUNNING=4
+EXIT_IVALID_INPUT=5
+
 #Requirements
-command -v tmux >/dev/null 2>&1 || { echo "zmux: Error: tmux is required but not installed." >&2; exit 1; }
-command -v fzf >/dev/null 2>&1 || { echo "zmux: Error: fzf is required but not installed." >&2; exit 1; }
+requirements() {
+    command -v tmux >/dev/null 2>&1 || { echo -e "zmux: Error: tmux is required but not installed." >&2; exit "${EXIT_DEPENDENCY_ERROR}"; }
+    command -v fzf >/dev/null 2>&1 || { echo -e "zmux: Error: fzf is required but not installed." >&2; exit "${EXIT_DEPENDENCY_ERROR}"; }
 
-command -v yq >/dev/null 2>&1 || { echo "zmux: Error: yq is required but not installed." >&2; exit 1; }
-yq_version=$(yq --version | awk '{print $4}')
-if [ "$yq_version" \< "v4.44.6" ]; then
-    echo "zmux: Error: yq version must be greater of equal than v4.44.6" >&2
-    echo "zmux: Error: Current version is ${yq_version}" >&2
-    exit 1;
-fi;
-
+    command -v yq >/dev/null 2>&1 || { echo -e "zmux: Error: yq is required but not installed." >&2; exit "${EXIT_DEPENDENCY_ERROR}"; }
+    yq_version=$(yq --version | awk '{print $4}')
+    if [ "$yq_version" \< "v4.44.5" ]; then
+        echo -e "zmux: Error: yq version must be greater of equal than v4.44.5" >&2
+        echo -e "zmux: Error: Current version is ${yq_version}" >&2
+        exit "${EXIT_DEPENDENCY_ERROR}";
+    fi;
+}
 # UTILS
 
 tmux_running() {
@@ -25,7 +36,7 @@ tmux_running() {
 }
 
 is_tmux_open() {
-    [[ -z "${TMUX:-}" ]]
+    [[ -n "${TMUX:-}" ]]
 }
 
 session_exists() {
@@ -33,46 +44,63 @@ session_exists() {
 }
 
 check_config() {
+    requirements
     if [[ ! -d "${CONFIG_DIR}" ]]; then
-        echo "zmux: Error: Config directory not found at '${CONFIG_FILE}'" >&2
-        read -p "Want to create Config Directory?[Y/n] " yn
+        echo -e "zmux: Error: Config directory not found at '${CONFIG_FILE}'" >&2
+        read -p "Want to create Config Directory? [Y/n] " yn
         case $yn in
             [Yy]* )
-                mkdir -p "${CONFIG_DIR}" && echo "Config directory created at '${CONFIG_DIR}'";
-                touch "${CONFIG_FILE}" && echo "Default config file created at '${CONFIG_FILE}'";
-                exit 0;;
+                mkdir -p "${CONFIG_DIR}" && echo -e "Config directory created at '${CONFIG_DIR}'";
+                touch "${CONFIG_FILE}" && echo -e "Default config file created at '${CONFIG_FILE}'";
+                exit "${EXIT_SUCCESS}";;
             [Nn]* )
-                echo "zmux: Error: Need to have Config directory";
-                exit 1;;
-            *) echo "zmux: Error: answer not valid. Exiting.." && exit;;
+                echo -e "zmux: Error: Need to have Config directory";
+                exit "${EXIT_CONFIG_ERROR}";;
+            *) echo -e "zmux: Error: answer not valid. Exiting.." && exit "${EXIT_SUCCESS}";;
         esac;
-        exit 2;
+        exit "${EXIT_CONFIG_ERROR}";
     fi
     yaml_files=("${CONFIG_DIR}"/*.yaml)
     if [[ ! -e "${yaml_files[0]}" ]]; then
-        echo "zmux: Error: No yaml configuration found in '${CONFIG_DIR}'";
-        exit 1;
+        echo -e "zmux: Error: No yaml configuration found in '${CONFIG_DIR}'";
+        exit "${EXIT_CONFIG_ERROR}";
     fi
-    configured=""
+
+    configured=()
+    duplicate_sessions=()
+
     for config_file in "${CONFIG_DIR}"/*.yaml; do
         if [[ -f "${config_file}" ]]; then
-            if [[ $(yq '.sessions' "${config_file}"  | grep -v null 2>/dev/null) ]]; then
-                file_sessions=$(yq '.sessions | keys' "${config_file}" | sed 's/- //')
-                configured+="${file_sessions}"$'\n'
+            if [[ ! $(yq '.sessions | keys | .[]' "${config_file}" 2>/dev/null) ]]; then
+                echo -e "zmux: Error: Bad format in '${config_file}'";
+                exit "${EXIT_CONFIG_ERROR}"
             fi
+            session_names=$(yq '.sessions | keys | .[]' "${config_file}" 2>/dev/null)
+            while IFS= read -r session; do
+                if [[ "${configured[*]}" =~ (^| )${session}($| ) ]]; then
+                    echo -e "${session}"
+                    duplicate_sessions+=("${session}")
+                fi
+                configured+="${session}"$'\n'
+            done <<< "${session_names}"
         fi
     done
+    if [[ ${#duplicate_sessions[@]} -gt 0 ]]; then
+        dup=$(printf '%s ' "${duplicate_sessions[@]}")
+        echo -e "zmux: Error: duplicate session(s) found '${dup}', exiting.." >&2;
+        exit "${EXIT_CONFIG_ERROR}"
+    fi
 }
 
 preview() {
     session_name=$1
     [[ -z $1 ]] && return
-    echo "Session : ${session_name}"
-    echo "-------------------------------------------------"
+    echo -e "Session : ${session_name}"
+    echo -e "-------------------------------------------------"
     if session_exists "${session_name}"; then
-        echo "Status: Active"
+        echo -e "Status: Active"
     else
-        echo "Status: Inactive"
+        echo -e "Status: Inactive"
     fi
     local found=false
     for yaml_file in "${CONFIG_DIR}"/*.yaml; do
@@ -87,13 +115,28 @@ preview() {
     fi
     if session_exists "${session_name}"; then
         echo -e "\nConfigured Windows:"
-        echo "$(tmux list-windows -t ${session_name} -F '- #{window_name}')"
+        tmux list-windows -t ${session_name} | while IFS= read -r window; do
+        window_name=$(echo -e "$window" | awk -F':' '{print $2}' | awk '{print $1}' | tr -d '\*#-')
+        echo -e "- $window_name"
+        pane_count=$(tmux list-panes -t "${session_name}:${window_name}" | wc -l)
+        if [[ $pane_count -gt 1 ]]; then
+            echo -e "  - Contains $pane_count panes"
+        fi
+    done
     fi
     for yaml_file in "${CONFIG_DIR}"/*.yaml; do
         if (yq ".sessions.${session_name}" "${yaml_file}" | grep -v null &>/dev/null); then
             if ! session_exists "${session_name}"; then
                 echo -e "\nConfigured Windows:"
-                yq ".sessions.${session_name}.windows[].name" "${yaml_file}" | sed 's/^/- /'
+                local window_count=$(yq ".sessions.${session_name}.windows | length" "${yaml_file}")
+                for ((i = 0; i < window_count; i++)); do
+                    local window_name=$(yq ".sessions.${session_name}.windows[${i}].name" "${yaml_file}")
+                    echo -e "- ${window_name}"
+                    local pane_count=$(yq ".sessions.${session_name}.windows[${i}].panes | length // 0" "${yaml_file}")
+                    if [[ "${pane_count}" -gt 0 ]]; then
+                        echo -e " - Contains ${pane_count} pane(s)"
+                    fi
+                done
             fi
         fi
     done
@@ -105,22 +148,32 @@ export -f session_exists
 # List when no args
 list_sessions() {
     check_config
-    if [[ $(echo "${configured}" | uniq -d) ]]; then
-        dup=$(echo "${configured}" | uniq -d | tr '\n' ' ')
-        echo -e "zmux: error: duplicate session(s) found '${dup}', exiting.." >&2;
-        exit 2
+    if [[ $(echo -e "${configured}" | uniq -d) ]]; then
+        dup=$(echo -e "${configured}" | uniq -d | tr '\n' ' ')
+        echo -e "zmux: Error: duplicate session(s) found '${dup}', exiting.." >&2;
+        exit "${EXIT_CONFIG_ERROR}"
     fi
-    active=$(tmux ls -F "#S" 2>/dev/null || echo "")
+    active=$(tmux ls -F "#S" 2>/dev/null || echo -e "")
     combined=$(printf "%s\n%s" "$configured" "$active" | sort -u | grep -ve "^$")
-    local session=$(echo "$combined" | fzf --tmux 70% --border-label='Available Sessions' --header-first --bind='ctrl-t:toggle-preview' --preview="bash -c 'preview {}'" --header='Please select a session')
+    if is_tmux_open; then
+        local session=$(echo -e "$combined" \
+        | fzf --tmux --border-label='Available Sessions' --header-first \
+        --bind='ctrl-t:toggle-preview' \
+        --preview="bash -c 'preview {}'" --header='Please select a session')
+    else
+        local session=$(echo -e "$combined" \
+        | fzf --height=60% --border-label='Available Sessions' --header-first \
+        --bind='ctrl-t:toggle-preview' \
+        --preview="bash -c 'preview {}'" --header='Please select a session')
+    fi
     if [[ -n "$session" ]]; then
         if ! session_exists "$session"; then
             create_session "$session"
         fi
         if is_tmux_open; then
-            tmux attach-session -t "$session":1
-        else
             tmux switch-client -t "$session":1
+        else
+            tmux attach-session -t "$session":1
         fi
     fi
 }
@@ -137,8 +190,8 @@ create_session() {
     done
 
     if [[ -z $config_file ]]; then
-        echo "zmux: Error: Session '${session_name}' not found in any config file."
-        exit 2;
+        echo -e "zmux: Error: Session '${session_name}' not found in any config file."
+        exit "${EXIT_CONFIG_ERROR}";
     fi
 
     local root_dir=$(eval echo $(yq ".sessions.${session_name}.root" "$config_file"))
@@ -149,14 +202,29 @@ create_session() {
     local window_count=$(yq ".sessions.${session_name}.windows | length" "$config_file")
     for ((i = 0; i < window_count; i++)); do
         local window_name=$(yq ".sessions.${session_name}.windows[${i}].name" "$config_file")
+        local window_layout=$(yq ".sessions.${session_name}.windows[${i}].layout // \"main-vertical\"" "$config_file")
         local window_command=$(yq ".sessions.${session_name}.windows[${i}].command" "$config_file")
+        local pane_count=$(yq ".sessions.${session_name}.windows[${i}].panes | length // 0" "$config_file")
+
         if ((i == 0)); then
             tmux rename-window -t ${session_name}:${start_index} "${window_name}"
         else
             tmux new-window -t ${session_name} -n "${window_name}" -c "${root_dir}"
         fi
-        if [[ -n "$window_command" ]]; then
-            tmux send-keys -t "${session_name}":"$(printf '%q' ${window_name})" "$window_command" C-m
+
+        if [[ "${pane_count}" -gt 0 ]]; then
+            for ((j = 1; j < pane_count; j++)); do
+                tmux split-window -t "${session_name}:${window_name}"
+            done
+            tmux select-layout -t "${session_name}:${window_name}" "${window_layout}"
+            for ((j = 0; j <= pane_count; j++)); do
+                local pane_command=$(yq ".sessions.${session_name}.windows[${i}].panes[${j}].command" "$config_file" | grep -v null)
+                if [[ -n "${pane_command}" ]]; then
+                    tmux send-keys -t "${session_name}:${window_name}.$((j + 1))" "$pane_command" C-m
+                fi
+            done
+        elif [[ -n "$window_command" ]]; then
+                tmux send-keys -t "${session_name}":"$(printf '%q' ${window_name})" "$window_command" C-m
         fi
     done
 }
@@ -165,11 +233,11 @@ create_session() {
 export_config() {
     local session_name=$(tmux display-message -p "#S")
     check_config
-    if [[ $(echo "${configured}" | grep "${session_name}") ]]; then
+    if [[ $(echo -e "${configured}" | grep "${session_name}") ]]; then
         echo -e "zmux: Error: Session name already exists, Exiting.." >&2;
-        exit
+        exit "${EXIT_CONFIG_ERROR}";
     fi
-    echo "Avaiable config files:"
+    echo -e "Avaiable config files:"
     find "${CONFIG_DIR}" \( -type f -o -type l \) -name "*.yaml" -exec basename '{}' .yaml \;
     read -p "Enter file (without path or extension) to export to: " config_name
     if [[ -z "${config_name}" ]]; then
@@ -186,47 +254,49 @@ export_config() {
             root_dir=$answer
         else
             echo -e "zmux: Error: Path not valid, Exiting.." >&2;
-            exit 2;
+            exit "${EXIT_CONFIG_ERROR}";
         fi
     fi
     if [[ ! -f "${export_file}" ]]; then
-        yaml_content="sessions:
-  ${session_name}:
-    root: ${root_dir}
-    start_index: 1
-    windows:"
+        yaml_content="---\n"
+        yaml_content+="sessions:
+        ${session_name}:
+        root: ${root_dir}
+        start_index: 1
+        windows:"
     else
         yaml_content="  ${session_name}:
-    root: ${root_dir}
-    start_index: 1
-    windows:"
+        root: ${root_dir}
+        start_index: 1
+        windows:"
     fi
     local windows=$(tmux list-windows -t $session_name -F '#I #W #{pane_current_path}')
     while IFS=' ' read -r index name path; do
         last_command=""
         yaml_content+="
-      - name: $name
+        - name: $name
         command: \"$last_command\""
     done <<< "$windows"
     echo -e "${yaml_content}" >> $export_file;
     if [[ ! -f "${export_file}" ]]; then
-        echo "Created config file for '${session_name}' on '${export_file}'"
+        echo -e "Created config file for '${session_name}' on '${export_file}'"
     else
-        echo "Appended config file for '${session_name}' on '${export_file}'"
+        echo -e "Appended config file for '${session_name}' on '${export_file}'"
     fi
 }
 
 # When using -h flag
 help() {
-        echo "Usage: zmux [session] or zmux [flag]";
-        echo "You can use zmux with no arguments to list all active and pre configured sessions";
-        echo "You can press Ctrl-t to toggle preview-window"
-        echo "Flags:";
-        echo "-h, --help         Print this help message";
-        echo "-k, --kill         Kill Tmux server";
-        echo "-e, --export       Export current session into a YAML file";
-        echo "-c, --check        Check your configuration files with yamllint(required)";
-        echo "-v, --version      Display version information and exit";
+    echo -e "Usage: zmux [session] or zmux [flag]";
+    echo -e "You can use zmux with no arguments to list all active and pre configured sessions";
+    echo -e "You can press Ctrl-t to toggle preview-window"
+    echo -e "Flags:";
+    echo -e "-h, --help                                     Print this help message";
+    echo -e "-k <session-name>, --kill  <session-name>      Kill Tmux Session";
+    echo -e "-k all, --kill  all                            Kill Tmux Server";
+    echo -e "-e, --export                                   Export current session into a YAML file";
+    echo -e "-c, --check                                    Check your configuration files with yamllint(required)";
+    echo -e "-v, --version                                  Display version information and exit";
 }
 
 grep_config() {
@@ -239,73 +309,101 @@ grep_config() {
     return 0
 }
 
+kill () {
+    if [[ $# -eq 0 ]]; then
+        echo -e "zmux: Error: Must specify session name or 'all' to kill server." >&2;
+        exit "${EXIT_IVALID_INPUT}";
+    fi
+    if [[ $1 == all ]]; then
+        tmux kill-server
+        exit "${EXIT_SUCCESS}";
+    fi
+    local failed=()
+    for session in "${@}"; do
+        if session_exists "${session}"; then
+            tmux kill-session -t "${session}"
+        else
+            failed+=(${session})
+        fi
+    done
+    if [[ ${#failed[@]} -gt 0 ]]; then
+        echo -e "zmux: Error: Must be on Tmux" >&2;
+        exit "${EXIT_INVALID_SESSION_NAME}";
+    fi
+}
+
 main() {
+    requirements
     if [[ $# -eq 0 ]]; then
         list_sessions;
-        exit 0;
+        exit "${EXIT_SUCCESS}";
     elif [[ $1 == "--help" || $1 == "-h" ]]; then
         help;
     elif [[ $1 == "--version" || $1 == "-v" ]]; then
-        echo "${VERSION}";
-        exit 0
+        echo -e "${VERSION}";
+        exit "${EXIT_SUCCESS}";
     elif [[ $1 == "--kill" || $1 == "-k" ]]; then
-        tmux kill-server;
+        shift
+        kill $@;
     elif [[ $1 == "--check" || $1 == "-c" ]]; then
-        command -v yamllint >/dev/null 2>&1 || { echo "zmux: Error: yamllint is required but not installed." >&2; exit 1; }
+        command -v yamllint >/dev/null 2>&1 || { echo -e "zmux: Error: yamllint is required but not installed." >&2; exit "${EXIT_DEPENDENCY_ERROR}"; }
         check_config
         yamllint --no-warnings "${CONFIG_DIR}"
     elif [[ $1 == "--export" || $1 == "-e" ]]; then
-        if is_tmux_open; then
-            echo "zmux: Error: Must be on Tmux" >&2; exit 3;
+        if ! is_tmux_open; then
+            echo -e "zmux: Error: Must be on Tmux" >&2; exit "${INVALID_SESSION_NAME}";
         fi;
-        read -p "Want Export Current Session Configuration?[Y/n] " yn
+        read -p "Want Export Current Session Configuration? [Y/n] " yn
         case $yn in
-            [Yy]* ) export_config $@; exit 0;;
-            [Nn]* ) exit ;;
-            *) echo "zmux: Error: answer not valid. Exiting.." && exit;;
+            [Yy]* ) export_config $@; exit "${EXIT_SUCCESS}";;
+            [Nn]* ) exit "${EXIT_SUCCESS}" ;;
+            *) echo -e "zmux: Error: answer not valid. Exiting.." && exit "${EXIT_TMUX_NOT_RUNNING}";;
         esac;
     elif [[ $1 == "-"* ]]; then
-        echo "zmux: Error: Name must not start with '-'" >&2
+        echo -e "zmux: Error: Name must not start with '-'" >&2
+        exit "${EXIT_TMUX_NOT_RUNNING}";
     else
         check_config
-        if [[ $(echo "${configured}" | uniq -d) ]]; then
-            dup=$(echo "${configured}" | uniq -d | tr '\n' ' ')
+        if [[ $(echo -e "${configured}" | uniq -d) ]]; then
+            dup=$(echo -e "${configured}" | uniq -d | tr '\n' ' ')
             echo -e "zmux: error: duplicate session(s) found '${dup}', exiting.." >&2;
-            exit 2
+            exit "${EXIT_CONFIG_ERROR}";
         fi
         local session_name="$1"
         if [[ ! "$session_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-            echo "zmux: Error: Invalid session name '$session_name'. Use Alphanumeric, underscore or hyphen." >&2
-            exit 1
+            echo -e "zmux: Error: Invalid session name '$session_name'. Use Alphanumeric, underscore or hyphen." >&2
+            exit "${EXIT_TMUX_NOT_RUNNING}";
+        elif [[ "$session_name" == "all" ]]; then
+            echo -e "zmux: Error: 'all' is a reserved keyword. Exiting.." >&2
+            exit "${EXIT_INVALID_SESSION_NAME}";
         elif grep_config $@ && ! session_exists "${session_name}"; then
-            echo "zmux: Error: Session '${session_name}' not found." >&2
-            read -p "Want to create a new session named '${session_name}'?[Y/n] " answer
+            echo -e "zmux: Error: Session '${session_name}' not found." >&2
+            read -p "Want to create a new session named '${session_name}'? [Y/n] " answer
             case $answer in
                 [Yy]* )
-                    echo "Session will be created. Continuing.."
+                    echo -e "Session will be created. Continuing.."
                     tmux new-session -d -s "$session_name"
                     ;;
                 [Nn]* )
-                    echo "Session will not be created. Exiting.."
+                    echo -e "Session will not be created. Exiting.."
                     exit
                     ;;
-                *) echo "zmux: Error: answer not valid. Exiting.." && exit;;
+                *) echo -e "zmux: Error: answer not valid. Exiting.." && exit "${EXIT_TMUX_NOT_RUNNING}";;
             esac
         fi
         if ! tmux_running; then
-            echo "No Tmux server found, starting default server"
+            echo -e "No Tmux server found, starting default server"
             tmux new-session -d -s default
         fi
         if ! session_exists "$session_name"; then
             create_session "$session_name"
         fi
         if is_tmux_open; then
-            tmux attach-session -t "$session_name":1
-        else
             tmux switch-client -t "$session_name":1
+        else
+            tmux attach-session -t "$session_name":1
         fi
     fi
-
 }
 
 main "$@"
