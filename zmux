@@ -17,17 +17,18 @@ EXIT_TMUX_NOT_RUNNING=4
 EXIT_IVALID_INPUT=5
 
 #Requirements
-command -v tmux >/dev/null 2>&1 || { echo -e "zmux: Error: tmux is required but not installed." >&2; exit "${EXIT_DEPENDENCY_ERROR}"; }
-command -v fzf >/dev/null 2>&1 || { echo -e "zmux: Error: fzf is required but not installed." >&2; exit "${EXIT_DEPENDENCY_ERROR}"; }
+requirements() {
+    command -v tmux >/dev/null 2>&1 || { echo -e "zmux: Error: tmux is required but not installed." >&2; exit "${EXIT_DEPENDENCY_ERROR}"; }
+    command -v fzf >/dev/null 2>&1 || { echo -e "zmux: Error: fzf is required but not installed." >&2; exit "${EXIT_DEPENDENCY_ERROR}"; }
 
-command -v yq >/dev/null 2>&1 || { echo -e "zmux: Error: yq is required but not installed." >&2; exit "${EXIT_DEPENDENCY_ERROR}"; }
-yq_version=$(yq --version | awk '{print $4}')
-if [ "$yq_version" \< "v4.44.5" ]; then
-    echo -e "zmux: Error: yq version must be greater of equal than v4.44.5" >&2
-    echo -e "zmux: Error: Current version is ${yq_version}" >&2
-    exit "${EXIT_DEPENDENCY_ERROR}";
-fi;
-
+    command -v yq >/dev/null 2>&1 || { echo -e "zmux: Error: yq is required but not installed." >&2; exit "${EXIT_DEPENDENCY_ERROR}"; }
+    yq_version=$(yq --version | awk '{print $4}')
+    if [ "$yq_version" \< "v4.44.5" ]; then
+        echo -e "zmux: Error: yq version must be greater of equal than v4.44.5" >&2
+        echo -e "zmux: Error: Current version is ${yq_version}" >&2
+        exit "${EXIT_DEPENDENCY_ERROR}";
+    fi;
+}
 # UTILS
 
 tmux_running() {
@@ -331,6 +332,7 @@ kill () {
 }
 
 main() {
+    requirements
     if [[ $# -eq 0 ]]; then
         list_sessions;
         exit "${EXIT_SUCCESS}";
