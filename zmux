@@ -35,7 +35,7 @@ tmux_running() {
 }
 
 is_tmux_open() {
-    [[ -z "${TMUX:-}" ]]
+    [[ -n "${TMUX:-}" ]]
 }
 
 session_exists() {
@@ -153,15 +153,25 @@ list_sessions() {
     fi
     active=$(tmux ls -F "#S" 2>/dev/null || echo -e "")
     combined=$(printf "%s\n%s" "$configured" "$active" | sort -u | grep -ve "^$")
-    local session=$(echo -e "$combined" | fzf --tmux 70% --border-label='Available Sessions' --header-first --bind='ctrl-t:toggle-preview' --preview="bash -c 'preview {}'" --header='Please select a session')
+    if is_tmux_open; then
+        local session=$(echo -e "$combined" \
+        | fzf --tmux --border-label='Available Sessions' --header-first \
+        --bind='ctrl-t:toggle-preview' \
+        --preview="bash -c 'preview {}'" --header='Please select a session')
+    else
+        local session=$(echo -e "$combined" \
+        | fzf --height=60% --border-label='Available Sessions' --header-first \
+        --bind='ctrl-t:toggle-preview' \
+        --preview="bash -c 'preview {}'" --header='Please select a session')
+    fi
     if [[ -n "$session" ]]; then
         if ! session_exists "$session"; then
             create_session "$session"
         fi
         if is_tmux_open; then
-            tmux attach-session -t "$session":1
-        else
             tmux switch-client -t "$session":1
+        else
+            tmux attach-session -t "$session":1
         fi
     fi
 }
@@ -206,15 +216,13 @@ create_session() {
             done
             tmux select-layout -t "${session_name}:${window_name}" "${window_layout}"
             for ((j = 0; j <= pane_count; j++)); do
-                local pane_command=$(yq ".sessions.${session_name}.windows[${i}].panes[${j}].command" "$config_file")
+                local pane_command=$(yq ".sessions.${session_name}.windows[${i}].panes[${j}].command" "$config_file" | grep -v null)
                 if [[ -n "${pane_command}" ]]; then
                     tmux send-keys -t "${session_name}:${window_name}.$((j + 1))" "$pane_command" C-m
                 fi
             done
-        else
-            if [[ -n "$window_command" ]]; then
+        elif [[ -n "$window_command" ]]; then
                 tmux send-keys -t "${session_name}":"$(printf '%q' ${window_name})" "$window_command" C-m
-            fi
         fi
     done
 }
@@ -281,12 +289,12 @@ help() {
     echo -e "You can use zmux with no arguments to list all active and pre configured sessions";
     echo -e "You can press Ctrl-t to toggle preview-window"
     echo -e "Flags:";
-    echo -e "-h, --help         Print this help message";
-    echo -e "-k <session-name>, --kill  <session-name>       Kill Tmux Session";
-    echo -e "-k all, --kill  all       Kill Tmux Server";
-    echo -e "-e, --export       Export current session into a YAML file";
-    echo -e "-c, --check        Check your configuration files with yamllint(required)";
-    echo -e "-v, --version      Display version information and exit";
+    echo -e "-h, --help                                     Print this help message";
+    echo -e "-k <session-name>, --kill  <session-name>      Kill Tmux Session";
+    echo -e "-k all, --kill  all                            Kill Tmux Server";
+    echo -e "-e, --export                                   Export current session into a YAML file";
+    echo -e "-c, --check                                    Check your configuration files with yamllint(required)";
+    echo -e "-v, --version                                  Display version information and exit";
 }
 
 grep_config() {
@@ -339,7 +347,7 @@ main() {
         check_config
         yamllint --no-warnings "${CONFIG_DIR}"
     elif [[ $1 == "--export" || $1 == "-e" ]]; then
-        if is_tmux_open; then
+        if ! is_tmux_open; then
             echo -e "zmux: Error: Must be on Tmux" >&2; exit "${INVALID_SESSION_NAME}";
         fi;
         read -p "Want Export Current Session Configuration? [Y/n] " yn
@@ -388,12 +396,11 @@ main() {
             create_session "$session_name"
         fi
         if is_tmux_open; then
-            tmux attach-session -t "$session_name":1
-        else
             tmux switch-client -t "$session_name":1
+        else
+            tmux attach-session -t "$session_name":1
         fi
     fi
-
 }
 
 main "$@"

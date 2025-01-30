@@ -5,17 +5,7 @@ setup() {
   load 'test_helper/bats-assert/load'
   export HOME=$(mktemp -d)
   mkdir -p "${HOME}/.config/zmux"
-    echo "
-sessions:
-  zmux:
-    root: /home/mrsloth/Projects/eZmux-Sessionizer
-    start_index: 1
-    windows:
-      - name: Code
-        command: echo hi
-      - name: Main
-        command: pwd
-        " > "${HOME}/.config/zmux/config.yaml"
+  touch "${HOME}/.config/zmux/config.yaml"
   DIR="$( cd "$( dirname "$BATS_TEST_FILENAME" )" >/dev/null 2>&1 && pwd )"
   PATH="$DIR/../:$PATH"
 }
@@ -37,15 +27,15 @@ sessions:
 }
 
 @test "Invalid name" {
-  run zmux hell@#o 2>&1
-  [[ $status -ne 0 ]]
-  [[ "${output}" =~ "Error:" ]]
+  run zmux hell@#o
+  assert_failure
+  assert_output --partial "Error:"
 }
 
 @test "Check zmux help" {
   run zmux --help
-  [[ $status -eq 0 ]]
-  [[ "${output}" =~ "Usage:" ]]
+  assert_success
+  assert_output --partial "Usage:"
 }
 
 @test "Error when tmux is missing" {
@@ -88,22 +78,31 @@ sessions:
 @test "Error on missing YAML config" {
     rm -f "${HOME}/.config/zmux/config.yaml"
     run zmux
-    [[ "$status" -ne 0 ]]
-    [[ "${output}" =~ "No yaml configuration found" ]]
+    assert_failure
+    assert_output --partial "No yaml configuration found"
 }
 
 @test "Attach to an existing session" {
-  tmux new-session -d -s existing_session
+    echo "
+    sessions:
+      yaml_session:
+        root: /tmp
+        windows:
+          - name: compile
+            command : pwd
+          - name: main
+            command: ''" > "${HOME}/.config/zmux/config.yaml"
+  run tmux new-session -d -s existing_session
   run zmux existing_session
-  assert_success
   run tmux list-sessions
+  assert_success
   assert_output --partial "existing_session"
 }
 
 @test "Handling invalid session names" {
     invalid_session="session@#"
     run zmux "$invalid_session"
-    [[ "$status" -ne 0 ]]
+    assert_failure
 }
 
 @test "Kill the tmux server using --kill flag" {
@@ -117,9 +116,9 @@ sessions:
 @test "Kill the tmux session using --kill flag" {
     tmux new-session -d -s "kill_test"
     run zmux --kill kill_test
-    [[ "$status" -eq 0 ]]
+    assert_success
     run tmux has-session -t kill_test
-    [[ ! "$output" =~ "can't find session" ]]
+    assert_output --partial "no server running"
 }
 
 @test "Create session from a YAML configuration file" {
@@ -136,7 +135,7 @@ sessions:
     run zmux yaml_session
 
     [[ $(tmux has-session -t yaml_session) -eq 0 ]]
-    [[ $(tmux list-windows -t yaml_session &>/dev/null) -eq 0 ]]
+    [[ $(tmux list-windows -t yaml_session) -eq 0 ]]
     run zmux -k all
 }
 
