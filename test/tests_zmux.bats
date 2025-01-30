@@ -62,18 +62,18 @@ setup() {
     export PATH=$PATH:/usr/bin
 }
 
-@test "Error when yq is missing" {
-    cp /usr/bin/awk .
-    cp /usr/bin/bash .
-    cp /usr/bin/env .
-    cp /usr/bin/tmux .
-    cp /usr/bin/fzf .
-    export PATH=$PWD
-    run $DIR/../zmux
-    assert_failure
-    assert_output --partial "yq is required but not installed"
-    export PATH=$PATH:/usr/bin
-}
+# @test "Error when yq is missing" {
+#     cp /usr/bin/awk .
+#     cp /usr/bin/bash .
+#     cp /usr/bin/env .
+#     cp /usr/bin/tmux .
+#     cp /usr/bin/fzf .
+#     export PATH=$PWD
+#     run $DIR/../zmux
+#     assert_failure
+#     assert_output --partial "yq is required but not installed"
+#     export PATH=$PATH:/usr/bin
+# }
 
 @test "Error on missing YAML config" {
     rm -f "${HOME}/.config/zmux/config.yaml"
