@@ -44,6 +44,7 @@ session_exists() {
 }
 
 check_config() {
+    requirements
     if [[ ! -d "${CONFIG_DIR}" ]]; then
         echo -e "zmux: Error: Config directory not found at '${CONFIG_FILE}'" >&2
         read -p "Want to create Config Directory? [Y/n] " yn
