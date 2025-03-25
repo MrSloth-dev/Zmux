@@ -212,7 +212,7 @@ create_session() {
         exit "${EXIT_CONFIG_ERROR}";
     fi
 
-    local root_dir=$(eval echo $(yq ".sessions.${session_name}.root" "$config_file"))
+    local root_dir=$(yq ".sessions.${session_name}.root" "$config_file")
     local start_index=$(yq ".sessions.${session_name}.start_index // 1" "$config_file")
 
     tmux new-session -d -s "${session_name}" -c "${root_dir}"
