@@ -2,7 +2,7 @@
 # A script to manage and create Tmux Sessions.
 
 set -euo pipefail
-VERSION="v0.4.0"
+VERSION="v0.4.1"
 export CONFIG_DIR="${HOME}/.config/zmux"
 export CONFIG_FILE="${HOME}/.config/zmux/config.yaml"
 
@@ -14,7 +14,7 @@ EXIT_DEPENDENCY_ERROR=1
 EXIT_CONFIG_ERROR=2
 EXIT_INVALID_SESSION_NAME=3
 EXIT_TMUX_NOT_RUNNING=4
-EXIT_IVALID_INPUT=5
+EXIT_INVALID_INPUT=5
 
 #Requirements
 requirements() {
@@ -51,33 +51,21 @@ check_config() {
             [Yy]* )
                 mkdir -p "${CONFIG_DIR}" && echo -e "Config directory created at '${CONFIG_DIR}'";
                 touch "${CONFIG_FILE}" && echo -e "Default config file created at '${CONFIG_FILE}'";
-                # echo << EOF >> ${CONFIG_FILE}
-                # ---
-                # sessions:
-                #   default:
-                #     root: ~/$HOME
-                #     windows:
-                #       - name: Editor
-                #       layout: tiled
-                #       panes:
-                #         - command: nvim .
-                #         - command: htop
-                #       - name: Compile
-                #         - command: ls
-                # EOF
-                default_file='---\n'
-                default_file+="sessions:\n"
-                default_file+="  default:\n"
-                default_file+="    root: ~/$HOME\n"
-                default_file+="    windows:\n"
-                default_file+="      - name: Editor\n"
-                default_file+="        layout: tiled\n"
-                default_file+="        panes:\n"
-                default_file+="          - command: nvim .\n"
-                default_file+="          - command: htop .\n"
-                default_file+="      - name: Compile\n"
-                default_file+="        command: ls\n"
-                echo -e "${default_file}" >> "${CONFIG_FILE}";
+cat <<- EOF > "${CONFIG_FILE}"
+---
+sessions:
+  default:
+    root: \$HOME
+    windows:
+      - name: Editor
+        layout: tiled
+        panes:
+          - command: nvim .
+          - command: htop
+      - name: Compile
+        command: ls
+EOF
+                # echo -e "${default_file}" >> "${CONFIG_FILE}";
 
                 exit "${EXIT_SUCCESS}";;
             [Nn]* )
@@ -143,13 +131,13 @@ preview() {
     if session_exists "${session_name}"; then
         echo -e "\nConfigured Windows:"
         tmux list-windows -t ${session_name} | while IFS= read -r window; do
-        window_name=$(echo -e "$window" | awk -F':' '{print $2}' | awk '{print $1}' | tr -d '\*#-')
-        echo -e "- $window_name"
-        pane_count=$(tmux list-panes -t "${session_name}:${window_name}" | wc -l)
-        if [[ $pane_count -gt 1 ]]; then
-            echo -e "  - Contains $pane_count panes"
-        fi
-    done
+            window_name=$(echo -e "$window" | awk -F':' '{print $2}' | awk '{print $1}' | tr -d '\*#-')
+            echo -e "- $window_name"
+            pane_count=$(tmux list-panes -t "${session_name}:${window_name}" | wc -l)
+            if [[ $pane_count -gt 1 ]]; then
+                echo -e " - Contains ${pane_count} pane(s)"
+            fi
+        done
     fi
     for yaml_file in "${CONFIG_DIR}"/*.yaml; do
         if (yq ".sessions.${session_name}" "${yaml_file}" | grep -v null &>/dev/null); then
@@ -167,6 +155,7 @@ preview() {
             fi
         fi
     done
+    unset -f session_exists
 }
 
 export -f preview
@@ -193,8 +182,10 @@ list_sessions() {
         --bind='ctrl-t:toggle-preview' \
         --preview="bash -c 'preview {}'" --header='Please select a session')
     fi
+    unset -f preview
     if [[ -n "$session" ]]; then
         if ! session_exists "$session"; then
+            unset -f session_exists
             create_session "$session"
         fi
         if is_tmux_open; then
@@ -250,8 +241,9 @@ create_session() {
                     tmux send-keys -t "${session_name}:${window_name}.$((j + 1))" "$pane_command" C-m
                 fi
             done
-        elif [[ -n "$window_command" ]]; then
-                tmux send-keys -t "${session_name}":"$(printf '%q' ${window_name})" "$window_command" C-m
+        elif [[ -n "${window_command}" ]]; then
+            tmux select-window -t "${session_name}":"$(printf '%q' ${window_name})"
+            tmux send-keys -t "${session_name}":"$(printf '%q' "${window_name}")" "${window_command}" C-m
         fi
     done
 }
@@ -284,31 +276,29 @@ export_config() {
             exit "${EXIT_CONFIG_ERROR}";
         fi
     fi
+    local yaml_content=""
     if [[ ! -f "${export_file}" ]]; then
         yaml_content="---\n"
-        yaml_content+="sessions:
-        ${session_name}:
-        root: ${root_dir}
-        start_index: 1
-        windows:"
+        yaml_content+="sessions:\n"
+        yaml_content+="  ${session_name}:\n"
+        yaml_content+="    root: ${root_dir}\n"
+        yaml_content+="    windows:\n"
     else
-        yaml_content="  ${session_name}:
-        root: ${root_dir}
-        start_index: 1
-        windows:"
+        yaml_content="  ${session_name}:\n"
+        yaml_content+="    root: ${root_dir}\n"
+        yaml_content+="    windows:\n"
     fi
     local windows=$(tmux list-windows -t $session_name -F '#I #W #{pane_current_path}')
     while IFS=' ' read -r index name path; do
         last_command=""
-        yaml_content+="
-        - name: $name
-        command: \"$last_command\""
+        yaml_content+="       - name: $name\n"
+        yaml_content+="         command: $last_command\n"
     done <<< "$windows"
     echo -e "${yaml_content}" >> $export_file;
     if [[ ! -f "${export_file}" ]]; then
         echo -e "Created config file for '${session_name}' on '${export_file}'"
     else
-        echo -e "Appended config file for '${session_name}' on '${export_file}'"
+        echo -e "Appended to config file for '${session_name}' on '${export_file}'"
     fi
 }
 
@@ -339,7 +329,7 @@ grep_config() {
 kill () {
     if [[ $# -eq 0 ]]; then
         echo -e "zmux: Error: Must specify session name or 'all' to kill server." >&2;
-        exit "${EXIT_IVALID_INPUT}";
+        exit "${EXIT_INVALID_INPUT}";
     fi
     if [[ $1 == all ]]; then
         tmux kill-server
@@ -393,7 +383,7 @@ main() {
         check_config
         if [[ $(echo -e "${configured}" | uniq -d) ]]; then
             dup=$(echo -e "${configured}" | uniq -d | tr '\n' ' ')
-            echo -e "zmux: error: duplicate session(s) found '${dup}', exiting.." >&2;
+            echo -e "zmux: Error: duplicate session(s) found '${dup}', exiting.." >&2;
             exit "${EXIT_CONFIG_ERROR}";
         fi
         local session_name="$1"
