@@ -82,6 +82,8 @@ Use the -e or --export flag to export the current session configuration to a YAM
 
   - Commands for each pane.
 
+- Note: The export of panes in split is currently not implemented.
+
 ### Kill Session or Server
 
 Use the `-k <session-name>` or --kill flag to kill the selected session. To kill the Tmux server and close all sessions use `-k all`
@@ -112,17 +114,14 @@ sessions:
           - command: nvim .
           - command: htop
       - name: Server
-        layout: even-vertical
-        panes:
-          - command: npm run dev
-          - command: tail -f logs.txt
+        command: npm run dev
 ```
 ### Supported Layouts
- - tiled : Panes are arranged in a grid.
- - even-horizontal : Panel are arranged horizontally with equal width.
- - even-vertical : Panel are arranged horizontally with equal height.
- - main-horizontal : Panel are arranged horizontally with equal height but the first index, this will occupy half of the screen.
- - main-vertical : Panel are arranged horizontally with equal width but the first index, this will occupy half of the screen.
+ - `tiled` : Panes are arranged in a grid.
+ - `even-horizontal `: Panel are arranged horizontally with equal width.
+ - `even-vertical `: Panel are arranged horizontally with equal height.
+ - `main-horizontal` : Panel are arranged horizontally with equal height but the first index, this will occupy half of the screen.
+ - `main-vertical` : Panel are arranged horizontally with equal width but the first index, this will occupy half of the screen.
 
 
 ## Configuration ⚙️
@@ -151,10 +150,7 @@ sessions:
           - command: nvim .
           - command: htop
       - name: Server
-        layout: even-vertical
-        panes:
-          - command: npm run dev
-          - command: tail -f logs.txt
+        command: npm run dev
 ```
 ### Key Fields 🔑
 - root: Root directory for the session.
@@ -169,6 +165,8 @@ sessions:
 
   - panes: (Optional) List of panes for splits. Each pane can have a command. (v0.4.0+)
 
+- Note: Due to how tmux commands works, I suggest to not put dots '.' in the name of windows and panes, because it leads to undefined behaviour that (currently) I cannot fix.
+
 ## Roadmap | TODO 🗺️
 - [x] Create Session with `zmux <session_name>`
   - [x] Assign root directory
@@ -178,6 +176,7 @@ sessions:
 - [x] `zmux` without args list all available sessions opened and in the configuration file
   - [x] fzf
 - [x] Export the current session into a YAML file for future usage
+  - [ ] Export working with splits!
 - [x] Use multiple files instead of only `config.yaml`
 - [x] Configuration Checker
 - [x] Preview windows in fzf list
@@ -187,6 +186,17 @@ sessions:
 - [ ] Sugestions are welcome!
 
 ## Changelog 📜
+
+### [0.4.1] - 2024-03-25
+
+#### Added
+- Error Handling: Created a default config because of configuration checks [#4](https://github.com/MrSloth-dev/Zmux/issues/4)
+
+#### Changed
+- Prevented some helper functions to be passed for subshells. [#5](https://github.com/MrSloth-dev/Zmux/issues/5)
+
+#### Bugfix
+- Fixed Typos.
 
 ### [0.4.0] - 2024-01-31
 
