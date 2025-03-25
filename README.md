@@ -5,8 +5,8 @@ Zmux is a bash script designed to make, managing and creating Tmux sessions a br
 Whether you're juggling multiple projects or just need a quick way to organize your workflow, Zmux has got you covered!
 
 
-
-![img](assets/preview.png)
+![with splits](assets/preview2.png)
+![without splits](assets/preview.png)
 
 
 ## Instalation 📥
