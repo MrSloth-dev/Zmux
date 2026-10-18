@@ -9,14 +9,14 @@ Whether you're juggling multiple projects or just need a quick way to organize y
 ![without splits](assets/preview.png)
 
 
-## Instalation 📥
+## Installation 📥
 
 ### Step 1: Download Zmux
 Choose a directory where you want to install Zmux (e.g., `~/.local/bin`, `~/bin`, or any directory in your `$PATH`).
 ``` bash
 # Example: Install to ~/.local/bin
 mkdir -p ~/.local/bin
-curl -o ~/.local/bin/zmux https://raw.githubusercontent.com/MrSloth-dev/eZmux/main/zmux
+curl -o ~/.local/bin/zmux https://raw.githubusercontent.com/MrSloth-dev/Zmux/main/zmux
 chmod +x ~/.local/bin/zmux
 ```
 
@@ -30,7 +30,7 @@ Then reload your shell:
 ```bash
 source ~/.zshrc  # or ~/.bashrc
 ```
-### Step 3: Verify Instalation
+### Step 3: Verify Installation
 Check if Zmux is installed correctly
 ```bash
 zmux -v
@@ -38,10 +38,9 @@ zmux -v
 
 ## Dependencies ⚙️
 
-- `tmux` version greater or equal to `v3.3`.
-- `yq` version greater or equal to `v4.44.6`. This tool allows the configuration parsing.
-- `fzf` This tool allows quick and interactive listing of all pre-configured and opened sessions.
-- `yamllint` This tool check if configuration files are well formatted.
+- [`tmux`](https://github.com/tmux/tmux) version greater or equal to `v3.3`.
+- [`fzf`](https://github.com/junegunn/fzf) for the interactive session list.
+- [`yq`](https://github.com/mikefarah/yq) (mikefarah's, `v4.52.1`+) — reads and queries the TOML configuration. It is a single static binary; no `jq` or Python needed.
 
 ## Usage 🛠️
 
@@ -64,13 +63,13 @@ Press Ctrl-t to toggle the preview window, which shows detailed information abou
 ### Open or Create a Specific Session
 
 Run `zmux <session-name>` to open or create a specific session. If the session does not exist, Zmux will prompt you to create it.
- - If the session is pre-configured in your YAML files, Zmux will create the session with the specified windows, panes, and commands.
+ - If the session is pre-configured in your TOML files, Zmux will create the session with the specified windows, panes, and commands.
 
  - If the session does not exist, Zmux will create a new session with the given name.
 
 ### Export Current Session Configuration
 
-Use the -e or --export flag to export the current session configuration to a YAML file. This is useful for saving session setups for future use.
+Use the -e or --export flag to export the current session configuration to a TOML file. This is useful for saving session setups for future use.
 
  - Zmux will prompt you to select a configuration file or create a new one.
 
@@ -90,7 +89,7 @@ Use the `-k <session-name>` or --kill flag to kill the selected session. To kill
 
 ### Check Configuration Files
 
-Use the `-c` or `--check` flag to validate your YAML configuration files with `yamllint`.
+Use the `-c` or `--check` flag to validate your TOML configuration files.
  - This ensures your configuration files are well-formatted and free of errors.
 
 ### Print Help
@@ -103,43 +102,88 @@ You can now configure splits (panes) within windows in your session configuratio
 
 ### Example Configuration
 
-``` yaml
-sessions:
-  project_a:
-    root: ~/Projects/ProjectA/
-    windows:
-      - name: Editor
-        layout: tiled  # Supported layouts: tiled, even-horizontal, even-vertical
-        panes:
-          - command: nvim .
-          - command: htop
-      - name: Server
-        command: npm run dev
+``` toml
+[sessions.project_a]
+root = "~/Projects/ProjectA/"
+
+[[sessions.project_a.windows]]
+name = "Editor"
+layout = "tiled"          # Supported layouts: tiled, even-horizontal, even-vertical
+panes = [
+  { command = "nvim ." },
+  { command = "htop" },
+]
+
+[[sessions.project_a.windows]]
+name = "Server"
+command = "npm run dev"
 ```
 ### Supported Layouts
  - `tiled` : Panes are arranged in a grid.
- - `even-horizontal `: Panel are arranged horizontally with equal width.
- - `even-vertical `: Panel are arranged horizontally with equal height.
- - `main-horizontal` : Panel are arranged horizontally with equal height but the first index, this will occupy half of the screen.
- - `main-vertical` : Panel are arranged horizontally with equal width but the first index, this will occupy half of the screen.
+ - `even-horizontal` : Panes are arranged horizontally with equal width.
+ - `even-vertical` : Panes are arranged vertically with equal height.
+ - `main-horizontal` : Panes are arranged vertically with equal height but the first index, this will occupy half of the screen.
+ - `main-vertical` : Panes are arranged horizontally with equal width but the first index, this will occupy half of the screen.
+
+When a window defines `panes` but no `layout`, Zmux defaults to `main-vertical`.
 
 
 ## Configuration ⚙️
 
-All configurations will be sourced in `YAML` format under `~/.config/zmux/` directory.
+All configurations will be sourced in `TOML` format under `~/.config/zmux/` directory.
 
 You can have multiple sessions pre-configured in each file:
 ```
 ~/.config/zmux/
-  ├── work.yaml      # Work-related sessions
-  ├── personal.yaml  # Personal project sessions
-  ├── dev.yaml       # Development environment sessions
-  └── server.yaml    # Server management sessions
+  ├── work.toml      # Work-related sessions
+  ├── personal.toml  # Personal project sessions
+  ├── dev.toml       # Development environment sessions
+  └── server.toml    # Server management sessions
 ```
 
 Example session:
 
+``` toml
+[sessions.project_a]
+root = "~/Projects/ProjectA/"
+
+[[sessions.project_a.windows]]
+name = "Editor"
+layout = "tiled"
+panes = [
+  { command = "nvim ." },
+  { command = "htop" },
+]
+
+[[sessions.project_a.windows]]
+name = "Server"
+command = "npm run dev"
+```
+### Key Fields 🔑
+- root: Root directory for the session.
+
+- windows: List of windows.
+
+  - name: Window name.
+
+  - command: Command to run in the window (or pane).
+
+  - layout: (Optional) Layout for splits. Supported: tiled, even-horizontal, even-vertical, main-horizontal, main-vertical. Defaults to `main-vertical`. (v0.4.0+)
+
+  - panes: (Optional) List of panes for splits. Each pane can have a command. (v0.4.0+)
+
+- start_index: (Optional) Index of the session's first window. Defaults to `1`. (v0.5.0+)
+
+- Note: Due to how tmux commands works, I suggest to not put dots '.' in the name of windows and panes, because it leads to undefined behaviour that (currently) I cannot fix.
+
+## Migrating from YAML 🚚
+
+Since v0.5.0 the configuration format is `TOML`. Rename your files from `*.yaml` to `*.toml` and translate them.
+
+Before:
+
 ``` yaml
+# ~/.config/zmux/dev.yaml
 sessions:
   project_a:
     root: ~/Projects/ProjectA/
@@ -152,20 +196,28 @@ sessions:
       - name: Server
         command: npm run dev
 ```
-### Key Fields 🔑
-- root: Root directory for the session.
 
-- windows: List of windows.
+After:
 
-  - name: Window name.
+``` toml
+# ~/.config/zmux/dev.toml
+[sessions.project_a]
+root = "~/Projects/ProjectA/"
 
-  - command: Command to run in the window (or pane).
+[[sessions.project_a.windows]]
+name = "Editor"
+layout = "tiled"
+panes = [
+  { command = "nvim ." },
+  { command = "htop" },
+]
 
-  - layout: (Optional) Layout for splits. Supported: tiled, even-horizontal, even-vertical. (v0.4.0+)
+[[sessions.project_a.windows]]
+name = "Server"
+command = "npm run dev"
+```
 
-  - panes: (Optional) List of panes for splits. Each pane can have a command. (v0.4.0+)
-
-- Note: Due to how tmux commands works, I suggest to not put dots '.' in the name of windows and panes, because it leads to undefined behaviour that (currently) I cannot fix.
+Rules of thumb: keys use `=`, strings are quoted, each window is a `[[sessions.<name>.windows]]` table, and a list of panes is `[ { … }, { … } ]`. Validate the result with `zmux --check`.
 
 ## Roadmap | TODO 🗺️
 - [x] Create Session with `zmux <session_name>`
@@ -175,17 +227,27 @@ sessions:
   - [x] Send Commands to each pane
 - [x] `zmux` without args list all available sessions opened and in the configuration file
   - [x] fzf
-- [x] Export the current session into a YAML file for future usage
+- [x] Export the current session into a TOML file for future usage
   - [ ] Export working with splits!
-- [x] Use multiple files instead of only `config.yaml`
+- [x] Use multiple files instead of only `config.toml`
 - [x] Configuration Checker
 - [x] Preview windows in fzf list
 - [x] Splits!
   - [x] Different Layouts!
 - [x] CI and testing to make sure it doesn't break anything
-- [ ] Sugestions are welcome!
+- [ ] Suggestions are welcome!
 
 ## Changelog 📜
+
+### [0.5.0] - 2026-10-18
+
+#### Changed
+- **Breaking:** configuration files are now `TOML` (`~/.config/zmux/*.toml`) instead of `YAML`.
+- Configuration is read and queried with [`yq`](https://github.com/mikefarah/yq) (`v4.52.1`+), a single static binary. No `jq` or Python is required.
+
+#### Added
+- TOML export with `-e` / `--export`.
+- `-c` / `--check` now validates the TOML files directly.
 
 ### [0.4.1] - 2024-03-25
 

@@ -20,12 +20,18 @@ jobs:
         git submodule update --init --recursive
 
     - name: Install Dependencies
-      run: sudo apt-get install -y tmux fzf wget yamllint 
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y tmux fzf wget
+
     - name: Install yq
       run: |
-        sudo wget https://github.com/mikefarah/yq/releases/download/v4.44.6/yq_linux_amd64 -O /usr/bin/yq
-        sudo chmod +x /usr/bin/yq
-        
+        sudo wget https://github.com/mikefarah/yq/releases/download/v4.54.1/yq_linux_amd64 -O /usr/local/bin/yq
+        sudo chmod +x /usr/local/bin/yq
+
+    - name: Show yq version
+      run: yq --version
+
     - name: Run Tests
       run: test/bats/bin/bats test/tests_zmux.bats
 
