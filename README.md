@@ -241,13 +241,17 @@ Rules of thumb: keys use `=`, strings are quoted, each window is a `[[sessions.<
 
 ### [0.5.0] - 2026-10-18
 
-#### Changed
-- **Breaking:** configuration files are now `TOML` (`~/.config/zmux/*.toml`) instead of `YAML`.
-- Configuration is read and queried with [`yq`](https://github.com/mikefarah/yq) (`v4.52.1`+), a single static binary. No `jq` or Python is required.
-
 #### Added
-- TOML export with `-e` / `--export`.
-- `-c` / `--check` now validates the TOML files directly.
+- TOML Support: sessions are now configured in `~/.config/zmux/*.toml`.
+- Export: sessions can be exported as TOML with `-e` / `--export`.
+- Configuration Checker: `-c` / `--check` now validates the TOML files.
+
+#### Changed
+- **Breaking:** switched the configuration format from `YAML` to `TOML`.
+- Dependencies: configuration is read and queried with [`yq`](https://github.com/mikefarah/yq) (`v4.52.1`+), a single static binary. `jq`, `yamllint` and Python are no longer required.
+
+#### Bugfix
+- Empty configuration files are ignored instead of being reported as badly formatted.
 
 ### [0.4.1] - 2024-03-25
 
